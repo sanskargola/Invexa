@@ -3,6 +3,8 @@ import MainLayout from './layouts/MainLayout'
 import AuthLayout from './layouts/AuthLayout'
 import AuthPage from './pages/auth/AuthPage'
 import Dashboard from './pages/dashboard/Dashboard'
+import Market from './pages/market/Market'
+import StockSearch from './pages/market/StockSearch'
 import TradingTerminal from './pages/trading/TradingTerminal.tsx'
 import WorkspacePage from './pages/WorkspacePage'
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -25,6 +27,8 @@ export default function App() {
 			<Route element={<MainLayout />}>
 				<Route index element={<Navigate to="/dashboard" replace />} />
 				<Route path="dashboard" element={<Dashboard />} />
+				<Route path="market" element={<Market />} />
+				<Route path="market/search" element={<StockSearch />} />
 				<Route path="terminal" element={<TradingTerminal />} />
 				<Route path="trading/terminal" element={<TradingTerminal />} />
 				<Route path="*" element={<WorkspacePage />} />

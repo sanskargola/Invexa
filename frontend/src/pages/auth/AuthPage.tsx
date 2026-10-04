@@ -55,13 +55,13 @@ export default function AuthPage() {
         return
       }
       if (isVerify) {
-        authApi.verifyEmail(email, code)
+        await authApi.verifyEmail(email, code)
         refreshUser()
         navigate('/dashboard', { replace: true, state: { notice: 'Email verified. Your account is ready.' } })
         return
       }
       if (isForgot) {
-        const resetToken = authApi.requestPasswordReset(email)
+        const resetToken = await authApi.requestPasswordReset(email)
         setNotice('If an account exists for this email, a reset link is ready in this demo.')
         if (resetToken) setResetUrl(`/auth/reset-password?email=${encodeURIComponent(email.trim().toLowerCase())}&token=${encodeURIComponent(resetToken)}`)
         return

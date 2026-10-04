@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: invexa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: Invexa API
+      ENVIRONMENT: development
+      DATABASE_URL: sqlite:///./invexa.db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: invexa-redis
+    ports:
+      - "6379:6379"
+

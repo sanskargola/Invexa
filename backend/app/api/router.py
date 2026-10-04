@@ -1,0 +1,27 @@
+from fastapi import APIRouter
+
+from app.api.v1 import alerts, algo, auth, backtesting, brokers, charts, fundamentals, market, notifications, orders, papertrading, portfolio, positions, predictions, reports, risk, sentiment, stocks, strategies, technical, users, websockets
+
+api_router = APIRouter()
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(market.router, prefix="/market", tags=["market"])
+api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
+api_router.include_router(portfolio.router, prefix="/portfolio", tags=["portfolio"])
+api_router.include_router(positions.router, prefix="/positions", tags=["positions"])
+api_router.include_router(orders.router, prefix="/orders", tags=["orders"])
+api_router.include_router(strategies.router, prefix="/strategies", tags=["strategies"])
+api_router.include_router(algo.router, prefix="/algo", tags=["algo"])
+api_router.include_router(predictions.router, prefix="/predictions", tags=["predictions"])
+api_router.include_router(backtesting.router, prefix="/backtesting", tags=["backtesting"])
+api_router.include_router(charts.router, prefix="/charts", tags=["charts"])
+api_router.include_router(technical.router, prefix="/technical", tags=["technical"])
+api_router.include_router(fundamentals.router, prefix="/fundamentals", tags=["fundamentals"])
+api_router.include_router(sentiment.router, prefix="/sentiment", tags=["sentiment"])
+api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(risk.router, prefix="/risk", tags=["risk"])
+api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
+api_router.include_router(brokers.router, prefix="/brokers", tags=["brokers"])
+api_router.include_router(papertrading.router, prefix="/papertrading", tags=["papertrading"])
+api_router.include_router(websockets.router, prefix="/ws", tags=["websockets"])
