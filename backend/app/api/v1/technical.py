@@ -1,5 +1,8 @@
-from fastapi import APIRouter
+from fastapi.concurrency import run_in_threadpool
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
+
+from app.services.market_data import get_technicals
 
 router = APIRouter()
 
@@ -10,14 +13,15 @@ class TechnicalIndicators(BaseModel):
     macd: float
     moving_average_20: float
     moving_average_50: float
+    last_price: float = 0
+    trend: str = "Neutral"
 
 
 @router.get("/{symbol}", response_model=TechnicalIndicators)
-def get_technical_indicator(symbol: str) -> TechnicalIndicators:
-    return TechnicalIndicators(
-        symbol=symbol.upper(),
-        rsi=63.4,
-        macd=2.12,
-        moving_average_20=211.7,
-        moving_average_50=206.8,
-    )
+async def get_technical_indicator(symbol: str) -> TechnicalIndicators:
+    try:
+        return TechnicalIndicators(**(await run_in_threadpool(get_technicals, symbol)))
+    except LookupError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error

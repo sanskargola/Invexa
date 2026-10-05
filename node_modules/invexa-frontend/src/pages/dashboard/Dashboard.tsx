@@ -1,20 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Download, MoreHorizontal, Plus, Sparkles } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { marketApi, type MarketQuote } from '../../services/marketApi'
 
-const movers = [
-	{ ticker: 'NVDA', name: 'NVIDIA Corporation', price: '$142.87', change: '+3.42%', positive: true, values: '0,20 10,15 20,18 30,8 40,13 50,6 60,10 70,2' },
-	{ ticker: 'AAPL', name: 'Apple Inc.', price: '$232.61', change: '+1.18%', positive: true, values: '0,17 10,12 20,16 30,7 40,10 50,3 60,9 70,4' },
-	{ ticker: 'TSLA', name: 'Tesla, Inc.', price: '$352.56', change: '-2.71%', positive: false, values: '0,3 10,8 20,5 30,14 40,9 50,18 60,11 70,20' },
+const paperHoldings = [
+	{ ticker: 'NVDA', shares: 42, color: '#a8c55a' },
+	{ ticker: 'AAPL', shares: 18, color: '#78a9d2' },
+	{ ticker: 'MSFT', shares: 9, color: '#d58e6c' },
+	{ ticker: 'AMZN', shares: 21, color: '#d5bd73' },
 ]
 
-const holdings = [
-	{ ticker: 'NVDA', name: 'NVIDIA Corporation', shares: '42 shares', price: '$142.87', value: '$6,000.54', change: '+8.42%', positive: true, color: '#a8c55a' },
-	{ ticker: 'AAPL', name: 'Apple Inc.', shares: '18 shares', price: '$232.61', value: '$4,186.98', change: '+2.11%', positive: true, color: '#78a9d2' },
-	{ ticker: 'MSFT', name: 'Microsoft Corporation', shares: '9 shares', price: '$428.76', value: '$3,858.84', change: '-0.84%', positive: false, color: '#d58e6c' },
-	{ ticker: 'AMZN', name: 'Amazon.com, Inc.', shares: '21 shares', price: '$225.94', value: '$4,744.74', change: '+1.36%', positive: true, color: '#d5bd73' },
-]
+function formatMoney(value: number, currency = 'USD') {
+	const prefix = currency === 'INR' ? '₹' : '$'
+	return `${prefix}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function sparkline(positive: boolean) {
+	return positive ? '0,20 10,15 20,18 30,8 40,13 50,6 60,10 70,2' : '0,3 10,8 20,5 30,14 40,9 50,18 60,11 70,20'
+}
 
 function PerformanceChart() {
 	const line = '0,102 14,95 27,98 40,82 53,88 66,75 79,78 92,60 105,65 118,54 131,62 144,47 157,52 170,37 183,45 196,33 209,39 222,22 235,31 248,12 261,18 274,5 287,13 300,0'
@@ -31,14 +35,64 @@ export default function Dashboard() {
 	const location = useLocation()
 	const { user } = useAuth()
 	const [portfolioMenuOpen, setPortfolioMenuOpen] = useState(false)
+	const [quotes, setQuotes] = useState<MarketQuote[]>([])
 	const [notice, setNotice] = useState(typeof location.state?.notice === 'string' ? location.state.notice : '')
+
+	useEffect(() => {
+		void marketApi.getQuotes().then(setQuotes).catch(() => undefined)
+		const timer = window.setInterval(() => {
+			void marketApi.getQuotes().then(setQuotes).catch(() => undefined)
+		}, 20000)
+		return () => window.clearInterval(timer)
+	}, [])
+
+	const quoteMap = useMemo(() => new Map(quotes.map((item) => [item.symbol, item])), [quotes])
+	const holdings = paperHoldings.map((holding) => {
+		const quote = quoteMap.get(holding.ticker)
+		const price = quote?.price ?? 0
+		const value = price * holding.shares
+		const change = quote?.percent_change ?? 0
+		return {
+			ticker: holding.ticker,
+			name: quote?.name ?? holding.ticker,
+			shares: `${holding.shares} shares`,
+			price: price ? formatMoney(price, quote?.currency) : '—',
+			value: price ? formatMoney(value, quote?.currency) : '—',
+			change: `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`,
+			positive: change >= 0,
+			color: holding.color,
+		}
+	})
+	const movers = quotes.slice(0, 3).map((item) => ({
+		ticker: item.symbol,
+		name: item.name,
+		price: formatMoney(item.price, item.currency),
+		change: `${item.percent_change >= 0 ? '+' : ''}${item.percent_change.toFixed(2)}%`,
+		positive: item.percent_change >= 0,
+		values: sparkline(item.percent_change >= 0),
+	}))
+	const invested = paperHoldings.reduce((sum, holding) => sum + (quoteMap.get(holding.ticker)?.price ?? 0) * holding.shares, 0)
+	const dayPnl = paperHoldings.reduce((sum, holding) => {
+		const quote = quoteMap.get(holding.ticker)
+		if (!quote) return sum
+		return sum + quote.change * holding.shares
+	}, 0)
+	const buyingPower = 12840
+	const portfolioValue = invested + buyingPower
+	const dayPercent = invested ? (dayPnl / invested) * 100 : 0
+	const bestQuote = paperHoldings
+		.map((holding) => quoteMap.get(holding.ticker))
+		.filter((item): item is MarketQuote => Boolean(item))
+		.sort((left, right) => right.percent_change - left.percent_change)[0]
+	const [portfolioWhole, portfolioCents] = portfolioValue.toFixed(2).split('.')
+	const [pnlWhole, pnlCents] = Math.abs(dayPnl).toFixed(2).split('.')
 
 	function exportPortfolio() {
 		const csv = ['Symbol,Shares,Price,Market value,Return', ...holdings.map((holding) => `${holding.ticker},${holding.shares.replace(' shares', '')},${holding.price},${holding.value},${holding.change}`)].join('\n')
 		const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
 		const link = document.createElement('a')
 		link.href = url
-		link.download = 'invexa-portfolio.csv'
+		link.download = 'invexia-portfolio.csv'
 		link.click()
 		URL.revokeObjectURL(url)
 		setPortfolioMenuOpen(false)
@@ -59,12 +113,12 @@ export default function Dashboard() {
 					<div className="metric-top"><span>Total portfolio value</span><button className="icon-button" aria-label="More portfolio options" aria-expanded={portfolioMenuOpen} onClick={() => setPortfolioMenuOpen((open) => !open)}><MoreHorizontal size={18} /></button>
 						{portfolioMenuOpen && <div className="dashboard-action-menu"><button onClick={exportPortfolio}><Download size={14} /> Download holdings CSV</button><button onClick={() => { setPortfolioMenuOpen(false); navigate('/portfolio') }}>Open portfolio</button></div>}
 					</div>
-					<div className="metric-value">$48,294<span className="metric-cents">.82</span></div>
-					<div className="metric-foot"><span className="change-pill positive"><ArrowUpRight size={13} /> 2.84%</span><span>+$1,337.21 today</span><span className="muted-separator">·</span><span className="muted">vs. last close</span></div>
+					<div className="metric-value">${Number(portfolioWhole).toLocaleString()}<span className="metric-cents">.{portfolioCents}</span></div>
+					<div className="metric-foot"><span className={`change-pill ${dayPnl >= 0 ? 'positive' : 'negative'}`}>{dayPnl >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {Math.abs(dayPercent).toFixed(2)}%</span><span>{dayPnl >= 0 ? '+' : '-'}${Math.abs(dayPnl).toFixed(2)} today</span><span className="muted-separator">·</span><span className="muted">vs. last close</span></div>
 					<div className="portfolio-chart-wrap"><PerformanceChart /><div className="chart-xlabels"><span>9:30 AM</span><span>11:00 AM</span><span>12:30 PM</span><span>2:00 PM</span><span>4:00 PM</span></div></div>
 				</article>
-				<article className="metric-panel"><div className="metric-top"><span>Buying power</span><span className="metric-icon green-icon"><ArrowUpRight size={16} /></span></div><div className="metric-value">$12,840<span className="metric-cents">.00</span></div><div className="metric-foot"><span className="muted">Available to invest</span></div><div className="buying-power-track"><span /></div><div className="metric-small-row"><span>Invested</span><strong>$35,454.82</strong></div></article>
-				<article className="metric-panel"><div className="metric-top"><span>Day’s return</span><span className="metric-icon green-icon"><ArrowUpRight size={16} /></span></div><div className="metric-value positive-text">+$1,337<span className="metric-cents">.21</span></div><div className="metric-foot"><span className="change-pill positive"><ArrowUpRight size={13} /> 2.84%</span><span className="muted">today</span></div><div className="mini-bars" aria-label="Daily returns">{Array.from({ length: 18 }, (_, index) => <i key={index} />)}</div><div className="metric-small-row"><span>Best performer</span><strong className="positive-text">NVDA +8.42%</strong></div></article>
+				<article className="metric-panel"><div className="metric-top"><span>Buying power</span><span className="metric-icon green-icon"><ArrowUpRight size={16} /></span></div><div className="metric-value">$12,840<span className="metric-cents">.00</span></div><div className="metric-foot"><span className="muted">Available to invest</span></div><div className="buying-power-track"><span /></div><div className="metric-small-row"><span>Invested</span><strong>{formatMoney(invested)}</strong></div></article>
+				<article className="metric-panel"><div className="metric-top"><span>Day’s return</span><span className="metric-icon green-icon">{dayPnl >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}</span></div><div className={`metric-value ${dayPnl >= 0 ? 'positive-text' : 'negative-text'}`}>{dayPnl >= 0 ? '+' : '-'}${Number(pnlWhole).toLocaleString()}<span className="metric-cents">.{pnlCents}</span></div><div className="metric-foot"><span className={`change-pill ${dayPnl >= 0 ? 'positive' : 'negative'}`}>{dayPnl >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {Math.abs(dayPercent).toFixed(2)}%</span><span className="muted">today</span></div><div className="mini-bars" aria-label="Daily returns">{Array.from({ length: 18 }, (_, index) => <i key={index} />)}</div><div className="metric-small-row"><span>Best performer</span><strong className={(bestQuote?.percent_change ?? 0) >= 0 ? 'positive-text' : 'negative-text'}>{bestQuote ? `${bestQuote.symbol} ${bestQuote.percent_change >= 0 ? '+' : ''}${bestQuote.percent_change.toFixed(2)}%` : '—'}</strong></div></article>
 			</section>
 			<section className="dashboard-columns">
 				<article className="surface holdings-panel">

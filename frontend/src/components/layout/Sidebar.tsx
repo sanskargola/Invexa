@@ -33,7 +33,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 	}
 	return (
 		<aside className="sidebar">
-			<div className="brand"><Link className="brand-home" to="/dashboard"><span className="brand-mark"><ChartNoAxesCombined size={19} /></span><span>invexa<span className="brand-period">.</span></span></Link><button className="icon-button sidebar-collapse" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggle}><PanelLeftClose size={17} /></button></div>
+			<div className="brand"><Link className="brand-home" to="/dashboard"><span className="brand-mark"><ChartNoAxesCombined size={19} /></span><span>invexia<span className="brand-period">.</span></span></Link><button className="icon-button sidebar-collapse" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggle}><PanelLeftClose size={17} /></button></div>
 			<Link className="account-switcher" to="/settings/brokers"><span className="account-avatar">{user?.name?.slice(0, 1).toUpperCase() ?? 'I'}</span><span className="account-copy"><strong>Personal account</strong><small>Paper trading</small></span><ChevronDown size={15} /></Link>
 			<nav className="side-navigation" aria-label="Main navigation">
 				{sections.map((section) => <div className="nav-section" key={section.label}>
@@ -44,8 +44,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 			<div className="sidebar-bottom">
 				<NavLink to="/settings" className="nav-link"><Settings2 size={17} /><span>Settings</span></NavLink>
 				<NavLink to="/admin" className="nav-link"><Shield size={17} /><span>Administration</span></NavLink>
-				<a className="nav-link" href="mailto:support@invexa.io"><CircleHelp size={17} /><span>Help center</span><span className="external-mark">↗</span></a>
-				<div className="sidebar-user"><span className="user-avatar">{user?.name?.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() ?? 'IV'}</span><span className="account-copy"><strong>{user?.name ?? 'Invexa user'}</strong><small>{user?.email ?? ''}</small></span><Link className="icon-button profile-button" to="/settings/profile" aria-label="Profile settings"><Settings2 size={15} /></Link><button className="icon-button sign-out-button" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={15} /></button></div>
+				<a className="nav-link" href="mailto:support@invexia.io"><CircleHelp size={17} /><span>Help center</span><span className="external-mark">↗</span></a>
+				<div className="sidebar-user"><span className="user-avatar">{user?.name?.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() ?? 'IX'}</span><span className="account-copy"><strong>{user?.name ?? 'Invexia user'}</strong><small>{user?.email ?? ''}</small></span><Link className="icon-button profile-button" to="/settings/profile" aria-label="Profile settings"><Settings2 size={15} /></Link><button className="icon-button sign-out-button" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={15} /></button></div>
 			</div>
 		</aside>
 	)

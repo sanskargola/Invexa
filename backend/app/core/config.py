@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Invexa API"
+    app_name: str = "Invexia API"
     environment: Literal["development", "production", "testing"] = "development"
     debug: bool = True
     api_v1_prefix: str = "/api/v1"

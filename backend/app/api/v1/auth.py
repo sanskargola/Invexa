@@ -40,7 +40,7 @@ def login(payload: LoginPayload) -> TokenResponse:
 
 @router.get("/me", response_model=AuthUser)
 def me() -> AuthUser:
-    return AuthUser(id="user-1001", name="Demo Investor", email="demo@invexa.local")
+    return AuthUser(id="user-1001", name="Demo Investor", email="demo@invexia.local")
 
 
 @router.post("/logout")

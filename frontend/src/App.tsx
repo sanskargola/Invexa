@@ -6,6 +6,7 @@ import Dashboard from './pages/dashboard/Dashboard'
 import Market from './pages/market/Market'
 import StockSearch from './pages/market/StockSearch'
 import TradingTerminal from './pages/trading/TradingTerminal.tsx'
+import SettingsPage from './pages/settings/SettingsPage'
 import WorkspacePage from './pages/WorkspacePage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import PublicRoute from './routes/PublicRoute'
@@ -31,6 +32,8 @@ export default function App() {
 				<Route path="market/search" element={<StockSearch />} />
 				<Route path="terminal" element={<TradingTerminal />} />
 				<Route path="trading/terminal" element={<TradingTerminal />} />
+				<Route path="settings" element={<SettingsPage />} />
+				<Route path="settings/chart" element={<SettingsPage />} />
 				<Route path="*" element={<WorkspacePage />} />
 			</Route>
 			</Route>

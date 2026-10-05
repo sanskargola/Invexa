@@ -13,4 +13,4 @@ class UserProfile(BaseModel):
 
 @router.get("/me", response_model=UserProfile)
 def get_me() -> UserProfile:
-    return UserProfile(id="user-1001", name="Demo Investor", email="demo@invexa.local")
+    return UserProfile(id="user-1001", name="Demo Investor", email="demo@invexia.local")

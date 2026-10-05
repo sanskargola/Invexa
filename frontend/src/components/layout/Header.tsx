@@ -1,6 +1,7 @@
-import { Bell, Command, Search, SlidersHorizontal } from 'lucide-react'
+import { Bell, Command, Palette, Search, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useTheme } from '../../store/themeStore'
 
 const titles: Record<string, string> = {
 	'/dashboard': 'Overview', '/market': 'Markets', '/terminal': 'Trading terminal',
@@ -11,6 +12,7 @@ const titles: Record<string, string> = {
 export default function Header() {
 	const { pathname } = useLocation()
 	const navigate = useNavigate()
+	const { theme, cycleTheme } = useTheme()
 	const [searchOpen, setSearchOpen] = useState(false)
 	const [notificationsOpen, setNotificationsOpen] = useState(false)
 	const [query, setQuery] = useState('')
@@ -51,9 +53,10 @@ export default function Header() {
 			<div className="topbar-actions">
 				<button className="search-trigger" aria-expanded={searchOpen} onClick={() => { setSearchOpen((open) => !open); setNotificationsOpen(false) }}><Search size={16} /><span>Search pages...</span><kbd><Command size={11} /> K</kbd></button>
 				<button className="icon-button topbar-filter" aria-label="Open market search" title="Open market search" onClick={() => navigate('/market/search')}><SlidersHorizontal size={17} /></button>
+				<button className="icon-button" aria-label={`Change theme, current ${theme}`} title="Change theme" onClick={cycleTheme}><Palette size={17} /></button>
 				<button className="icon-button notification-button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => { setNotificationsOpen((open) => !open); setSearchOpen(false) }}><Bell size={17} /><i /></button>
 				<span className="topbar-divider" />
-				<span className="market-status"><i /> Market open</span>
+				<span className="market-status"><i /> Live data</span>
 			</div>
 			{searchOpen && <div className="header-popover search-popover"><label className="popover-search"><Search size={15} /><input autoFocus placeholder="Search pages..." value={query} onChange={(event) => setQuery(event.target.value)} /></label><span className="popover-label">NAVIGATION</span>{results.map((result) => <button key={result.path} className="search-result" onClick={() => { navigate(result.path); setSearchOpen(false); setQuery('') }}><span><strong>{result.label}</strong><small>{result.detail}</small></span><kbd>↵</kbd></button>)}{!results.length && <p className="popover-empty">No matching pages.</p>}</div>}
 			{notificationsOpen && <div className="header-popover notification-popover"><div className="popover-heading"><strong>Notifications</strong><button onClick={() => setNotificationsOpen(false)}>Close</button></div><button className="notification-item" onClick={() => { navigate('/alerts'); setNotificationsOpen(false) }}><i className="notice-dot" /><span><strong>NVDA is up 3.42%</strong><small>Your watchlist moved today · 12 min ago</small></span></button><button className="notification-item" onClick={() => { navigate('/portfolio'); setNotificationsOpen(false) }}><i className="notice-dot notice-dot-muted" /><span><strong>Portfolio summary is ready</strong><small>Daily performance report · 1 hr ago</small></span></button><button className="notification-footer" onClick={() => { navigate('/alerts'); setNotificationsOpen(false) }}>View all alerts</button></div>}

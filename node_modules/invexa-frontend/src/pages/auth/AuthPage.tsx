@@ -6,7 +6,7 @@ import { authApi } from '../../services/authApi'
 import { DEMO_VERIFICATION_CODE } from '../../store/authStore'
 
 const screenContent: Record<string, { title: string; subtitle: string; submit: string }> = {
-  login: { title: 'Welcome back', subtitle: 'Sign in to your Invexa workspace.', submit: 'Sign in' },
+  login: { title: 'Welcome back', subtitle: 'Sign in to your Invexia workspace.', submit: 'Sign in' },
   register: { title: 'Create your account', subtitle: 'Verify your email and we’ll open your trading workspace.', submit: 'Create account' },
   'forgot-password': { title: 'Reset your password', subtitle: 'Enter the email on your account to get a reset link.', submit: 'Create reset link' },
   'reset-password': { title: 'Choose a new password', subtitle: 'Use at least 8 characters for your new password.', submit: 'Update password' },
@@ -95,6 +95,6 @@ export default function AuthPage() {
       {notice && <p className="auth-notice" role="status">{notice}{resetUrl && <Link to={resetUrl}>Continue to password reset</Link>}{isReset && notice.startsWith('Password updated') && <Link to="/auth/login">Go to sign in</Link>}</p>}
     </form>
     {screen === 'login' && <div className="demo-login-option"><div className="auth-divider"><span />or explore the app<span /></div><button className="auth-provider" type="button" onClick={enterDemo}><FlaskConical size={15} /><span><strong>Explore demo account</strong><small>Instant access · sample portfolio · paper trading</small></span><ArrowRight size={15} /></button></div>}
-    <p className="auth-switch">{isRegister ? 'Already have an account?' : isForgot || isReset || isVerify ? <Link className="auth-back" to="/auth/login"><ArrowLeft size={13} /> Back to sign in</Link> : 'New to Invexa?'}{!isForgot && !isReset && <Link to={isRegister ? '/auth/login' : '/auth/register'}>{isRegister ? 'Sign in' : 'Create an account'}</Link>}</p>
+    <p className="auth-switch">{isRegister ? 'Already have an account?' : isForgot || isReset || isVerify ? <Link className="auth-back" to="/auth/login"><ArrowLeft size={13} /> Back to sign in</Link> : 'New to Invexia?'}{!isForgot && !isReset && <Link to={isRegister ? '/auth/login' : '/auth/register'}>{isRegister ? 'Sign in' : 'Create an account'}</Link>}</p>
   </div><p className="auth-disclaimer">Demo accounts are stored in this browser only. Do not reuse a real password.</p></section>
 }

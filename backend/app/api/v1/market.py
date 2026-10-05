@@ -1,11 +1,16 @@
+from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
+
+from app.services.market_data import get_news, get_quote, get_sentiment, list_quotes, market_overview, search_quotes
 
 router = APIRouter()
 
 
 class MarketQuote(BaseModel):
     symbol: str
+    yahoo_symbol: str | None = None
+    tradingview_symbol: str | None = None
     name: str
     exchange: str
     price: float
@@ -16,49 +21,59 @@ class MarketQuote(BaseModel):
     currency: str = "USD"
 
 
-MARKET_QUOTES: list[MarketQuote] = [
-    MarketQuote(symbol="AAPL", name="Apple Inc.", exchange="NASDAQ", price=214.88, change=3.42, percent_change=1.62, volume=5810000, market_cap=3200000000000, currency="USD"),
-    MarketQuote(symbol="MSFT", name="Microsoft Corporation", exchange="NASDAQ", price=456.12, change=4.10, percent_change=0.91, volume=4900000, market_cap=3390000000000, currency="USD"),
-    MarketQuote(symbol="NVDA", name="NVIDIA Corporation", exchange="NASDAQ", price=132.45, change=7.80, percent_change=6.25, volume=8900000, market_cap=3200000000000, currency="USD"),
-    MarketQuote(symbol="RELIANCE", name="Reliance Industries", exchange="NSE", price=3098.65, change=74.40, percent_change=2.46, volume=8200000, market_cap=2120000000000, currency="INR"),
-    MarketQuote(symbol="TCS", name="Tata Consultancy Services", exchange="NSE", price=3921.15, change=44.90, percent_change=1.16, volume=6400000, market_cap=1450000000000, currency="INR"),
-    MarketQuote(symbol="INFY", name="Infosys", exchange="NSE", price=1844.20, change=-18.55, percent_change=-0.99, volume=5200000, market_cap=930000000000, currency="INR"),
-    MarketQuote(symbol="HDFCBANK", name="HDFC Bank", exchange="NSE", price=1774.30, change=26.10, percent_change=1.49, volume=7100000, market_cap=1280000000000, currency="INR"),
-    MarketQuote(symbol="SBIN", name="State Bank of India", exchange="NSE", price=890.55, change=16.25, percent_change=1.86, volume=9800000, market_cap=780000000000, currency="INR"),
-]
+class SentimentSignal(BaseModel):
+    symbol: str
+    score: float
+    label: str
+    percent_change: float = 0
+    headline_count: int = 0
+
+
+class NewsItem(BaseModel):
+    title: str
+    publisher: str
+    link: str = ""
+    published: str = ""
+    symbol: str
 
 
 @router.get("/overview")
-def market_overview() -> dict[str, object]:
-    return {
-        "market_status": "open",
-        "advancers": 1684,
-        "decliners": 922,
-        "volatility_index": 14.2,
-        "total_volume": 230000000,
-        "markets": ["NASDAQ", "NSE", "BSE"],
-    }
+async def get_market_overview() -> dict[str, object]:
+    try:
+        return await run_in_threadpool(market_overview)
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
 
 
-@router.get("/search")
-def search_quotes(q: str = "") -> list[MarketQuote]:
-    query = (q or "").strip().lower()
-    if not query:
-        return MARKET_QUOTES
-    return [
-        item for item in MARKET_QUOTES
-        if query in item.symbol.lower() or query in item.name.lower() or query in item.exchange.lower()
-    ]
+@router.get("/search", response_model=list[MarketQuote])
+async def search_market_quotes(q: str = "") -> list[MarketQuote]:
+    items = await run_in_threadpool(search_quotes, q)
+    return [MarketQuote(**item) for item in items]
 
 
 @router.get("/quotes", response_model=list[MarketQuote])
-def list_quotes() -> list[MarketQuote]:
-    return MARKET_QUOTES
+async def get_quotes() -> list[MarketQuote]:
+    items = await run_in_threadpool(list_quotes)
+    return [MarketQuote(**item) for item in items]
 
 
 @router.get("/quotes/{symbol}", response_model=MarketQuote)
-def get_quote(symbol: str) -> MarketQuote:
-    for quote in MARKET_QUOTES:
-        if quote.symbol.lower() == symbol.lower():
-            return quote
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Quote for {symbol} not found")
+async def get_market_quote(symbol: str) -> MarketQuote:
+    try:
+        item = await run_in_threadpool(get_quote, symbol)
+        return MarketQuote(**item)
+    except LookupError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+
+
+@router.get("/news/{symbol}", response_model=list[NewsItem])
+async def get_market_news(symbol: str) -> list[NewsItem]:
+    items = await run_in_threadpool(get_news, symbol)
+    return [NewsItem(**item) for item in items]
+
+
+@router.get("/sentiment/{symbol}", response_model=SentimentSignal)
+async def get_market_sentiment(symbol: str) -> SentimentSignal:
+    return SentimentSignal(**(await run_in_threadpool(get_sentiment, symbol)))

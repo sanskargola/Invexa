@@ -7,7 +7,7 @@ from app.core.config import settings
 app = FastAPI(
     title=settings.app_name,
     version="1.0.0",
-    description="Backend API for the Invexa trading dashboard.",
+    description="Backend API for the Invexia trading workspace. Market quotes from Yahoo Finance; charts are served independently via TradingView.",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -30,4 +30,4 @@ def health() -> dict[str, str]:
 
 @app.get("/")
 def root() -> dict[str, str]:
-    return {"message": "Welcome to Invexa API"}
+    return {"message": "Welcome to Invexia API"}
