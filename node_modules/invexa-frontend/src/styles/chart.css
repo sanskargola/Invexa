@@ -32,10 +32,13 @@
 .chart-ohlc { position: absolute; z-index: 1; top: 8px; left: 14px; display: flex; gap: 5px; color: #9ca69d; font-size: 9px; pointer-events: none; }
 .chart-ohlc strong { color: #7f8b80; font-weight: 500; }
 .chart-ohlc span { margin-left: 4px; }
-.chart-canvas { width: 100%; height: 365px; }
+.chart-canvas { width: 100%; height: 420px; }
+.tradingview-widget-container, .tradingview-widget-container__widget { width: 100%; height: 100%; }
 .chart-drawing-hint { position: absolute; top: 34px; right: 14px; padding: 6px 8px; color: #e0e8d6; background: #303a2c; border: 1px solid #47533c; border-radius: 4px; font-size: 9px; pointer-events: none; }
 .chart-drawing-hint.hidden { display: none; }
 .chart-footer { display: flex; justify-content: space-between; padding: 7px 12px; color: #6f7a71; border-top: 1px solid #252d27; font-size: 8px; }
 .chart-footer span:last-child { display: flex; align-items: center; gap: 6px; }
 .chart-footer i { width: 5px; height: 5px; background: #89ba75; border-radius: 50%; }
+.chart-status { position: absolute; inset: 36px 12px 12px; z-index: 2; display: grid; place-items: center; color: #c5d1b8; background: rgba(23, 29, 25, .78); border-radius: 6px; font-size: 11px; }
+.chart-status-error { color: #e58b81; }
 @media (max-width: 720px) { .chart-instrument-bar { min-height: 56px; padding: 0 10px; }.chart-quote { gap: 4px; margin-right: 4px; }.chart-quote strong { font-size: 13px; }.chart-controls { align-items: flex-start; flex-direction: column; gap: 3px; padding: 6px 8px; }.timeframe-selector { width: 100%; justify-content: space-between; }.timeframe-selector button { min-width: 25px; padding: 0 3px; font-size: 8px; }.chart-toolbar { align-self: flex-end; }.chart-indicators { gap: 2px; padding: 0 6px; }.chart-indicators > span:first-child { display: none; }.chart-indicators > button { gap: 3px; padding: 4px; font-size: 8px; }.drawing-toolbar { gap: 0; padding-left: 3px; }.drawing-toolbar button { min-width: 25px; }.chart-canvas { height: 290px; }.chart-ohlc { left: 8px; gap: 3px; font-size: 8px; } }
