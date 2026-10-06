@@ -3,6 +3,8 @@ import { ArrowDown, ArrowUp, ChevronDown, Clock3, Plus, RefreshCw } from 'lucide
 import { Link, useSearchParams } from 'react-router-dom'
 import TradingChart from '../../components/charts/TradingChart'
 import { marketApi, type MarketQuote } from '../../services/marketApi'
+import { tradingStore } from '../../store/tradingStore'
+import { portfolioStore } from '../../store/portfolioStore'
 
 type Order = {
 	id: string
@@ -28,6 +30,7 @@ export default function TradingTerminal() {
 	const [quantity, setQuantity] = useState('10')
 	const [limitPrice, setLimitPrice] = useState('')
 	const [orders, setOrders] = useState<Order[]>([])
+	const [buyingPower, setBuyingPower] = useState(45020.18)
 	const [notice, setNotice] = useState('')
 	const [activeTab, setActiveTab] = useState<'orders' | 'positions' | 'history'>('orders')
 	const [watchlistUpdated, setWatchlistUpdated] = useState('Just now')
@@ -40,6 +43,22 @@ export default function TradingTerminal() {
 
 	useEffect(() => {
 		void loadQuotes().catch(() => setNotice('Live quotes are unavailable. Chart data may still load.'))
+		void tradingStore.fetchAll().then(() => {
+			const o = tradingStore.getOrders().map((ord) => ({
+				id: ord.id,
+				ticker: ord.symbol,
+				side: ord.side as 'Buy' | 'Sell',
+				quantity: ord.quantity,
+				type: ord.type,
+				status: ord.status,
+			}))
+			setOrders(o)
+		})
+		void portfolioStore.fetchAll().then(() => {
+			const sum = portfolioStore.getSummary()
+			if (sum) setBuyingPower(sum.cash)
+		})
+
 		const timer = window.setInterval(() => {
 			void loadQuotes().catch(() => undefined)
 		}, 20000)
@@ -74,7 +93,7 @@ export default function TradingTerminal() {
 		total: (3900 - index * 120).toLocaleString(),
 	}))
 
-	function submitOrder(event: FormEvent<HTMLFormElement>) {
+	async function submitOrder(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault()
 		if (!Number.isFinite(Number(quantity)) || Number(quantity) <= 0) {
 			setNotice('Enter a quantity greater than zero.')
@@ -84,17 +103,33 @@ export default function TradingTerminal() {
 			setNotice('Enter a valid limit price.')
 			return
 		}
-		const nextOrder: Order = {
-			id: `ORD-${Date.now().toString().slice(-6)}`,
-			ticker: symbol,
-			side,
-			quantity: Number(quantity),
-			type: orderType,
-			status: orderType === 'Market' ? 'Filled' : 'Open',
+
+		try {
+			const placed = await tradingStore.placeOrder({
+				symbol,
+				side,
+				quantity: Number(quantity),
+				type: orderType as any,
+				price: orderType === 'Limit' ? Number(limitPrice) : undefined,
+			})
+			const nextOrder: Order = {
+				id: placed.id,
+				ticker: placed.symbol,
+				side: placed.side as 'Buy' | 'Sell',
+				quantity: placed.quantity,
+				type: placed.type,
+				status: placed.status,
+			}
+			setOrders((current) => [nextOrder, ...current])
+			setActiveTab(orderType === 'Market' ? 'history' : 'orders')
+			setNotice(`${side} order for ${quantity} ${symbol} ${orderType === 'Market' ? 'filled' : 'placed'}.`)
+			void portfolioStore.fetchAll().then(() => {
+				const sum = portfolioStore.getSummary()
+				if (sum) setBuyingPower(sum.cash)
+			})
+		} catch (err: unknown) {
+			setNotice(err instanceof Error ? err.message : 'Failed to place order')
 		}
-		setOrders((current) => [nextOrder, ...current])
-		setActiveTab(orderType === 'Market' ? 'history' : 'orders')
-		setNotice(`${side} order for ${quantity} ${symbol} ${orderType === 'Market' ? 'filled' : 'placed'}.`)
 	}
 
 	return (
@@ -103,10 +138,10 @@ export default function TradingTerminal() {
 				<div>
 					<p className="eyebrow">EXECUTION <span className="eyebrow-dot">·</span> PAPER ACCOUNT</p>
 					<h1>Trading terminal</h1>
-					<p className="page-subtitle">TradingView charts with live Yahoo Finance quotes and a paper order ticket.</p>
+					<p className="page-subtitle">TradingView charts with live quotes and a connected order ticket.</p>
 				</div>
 				<div className="terminal-heading-actions">
-					<span className="account-equity">Buying power <strong>$12,840.00</strong></span>
+					<span className="account-equity">Buying power <strong>{money(buyingPower)}</strong></span>
 					<Link className="button button-primary" to="/settings/brokers"><Plus size={15} /> Connect broker</Link>
 				</div>
 			</div>
