@@ -6,6 +6,7 @@ import Dashboard from './pages/dashboard/Dashboard'
 import Market from './pages/market/Market'
 import StockSearch from './pages/market/StockSearch'
 import TradingTerminal from './pages/trading/TradingTerminal.tsx'
+import FullScreenTradingChart from './pages/trading/FullScreenTradingChart'
 import SettingsPage from './pages/settings/SettingsPage'
 import WorkspacePage from './pages/WorkspacePage'
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -25,17 +26,18 @@ export default function App() {
 				<Route path="/reset-password" element={<Navigate to="/auth/reset-password" replace />} />
 			</Route>
 			<Route element={<ProtectedRoute />}>
-			<Route element={<MainLayout />}>
-				<Route index element={<Navigate to="/dashboard" replace />} />
-				<Route path="dashboard" element={<Dashboard />} />
-				<Route path="market" element={<Market />} />
-				<Route path="market/search" element={<StockSearch />} />
-				<Route path="terminal" element={<TradingTerminal />} />
-				<Route path="trading/terminal" element={<TradingTerminal />} />
-				<Route path="settings" element={<SettingsPage />} />
-				<Route path="settings/chart" element={<SettingsPage />} />
-				<Route path="*" element={<WorkspacePage />} />
-			</Route>
+				<Route path="trading/chart" element={<FullScreenTradingChart />} />
+				<Route element={<MainLayout />}>
+					<Route index element={<Navigate to="/dashboard" replace />} />
+					<Route path="dashboard" element={<Dashboard />} />
+					<Route path="market" element={<Market />} />
+					<Route path="market/search" element={<StockSearch />} />
+					<Route path="terminal" element={<TradingTerminal />} />
+					<Route path="trading/terminal" element={<TradingTerminal />} />
+					<Route path="settings" element={<SettingsPage />} />
+					<Route path="settings/chart" element={<SettingsPage />} />
+					<Route path="*" element={<WorkspacePage />} />
+				</Route>
 			</Route>
 		</Routes>
 	)

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Settings2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, ExternalLink, Plus, Settings2 } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import ChartToolbar, { type ChartType } from './ChartToolbar'
 import TimeframeSelector, { type Timeframe } from './TimeframeSelector'
 import { marketApi, type MarketQuote } from '../../services/marketApi'
@@ -35,9 +35,9 @@ function fallbackTvSymbol(symbol: string) {
 	return indian.has(symbol.toUpperCase()) ? `NSE:${symbol.toUpperCase()}` : `NASDAQ:${symbol.toUpperCase()}`
 }
 
-type TradingChartProps = { symbol?: string }
+type TradingChartProps = { symbol?: string; fullScreen?: boolean }
 
-export default function TradingChart({ symbol = 'NVDA' }: TradingChartProps) {
+export default function TradingChart({ symbol = 'NVDA', fullScreen = false }: TradingChartProps) {
 	const navigate = useNavigate()
 	const { theme } = useTheme()
 	const widgetHost = useRef<HTMLDivElement>(null)
@@ -98,7 +98,7 @@ export default function TradingChart({ symbol = 'NVDA' }: TradingChartProps) {
 	}, [symbol, timeframe, chartType, volume, theme])
 
 	return (
-		<section className="trading-chart-panel">
+		<section className={`trading-chart-panel${fullScreen ? ' is-full-screen' : ''}`}>
 			<div className="chart-instrument-bar">
 				<div className="chart-instrument">
 					<span className="instrument-avatar">{symbol.slice(0, 1)}</span>
@@ -113,6 +113,11 @@ export default function TradingChart({ symbol = 'NVDA' }: TradingChartProps) {
 					{quote && <span className={quote.percent_change >= 0 ? 'positive-text' : 'negative-text'}>{quote.percent_change >= 0 ? '+' : ''}{quote.percent_change.toFixed(2)}%</span>}
 				</div>
 				<button className="icon-button chart-settings" aria-label="Chart settings" title="Chart settings" onClick={() => navigate('/settings')}><Settings2 size={16} /></button>
+				{fullScreen ? (
+					<Link className="icon-button chart-expand-button" to={`/terminal?symbol=${encodeURIComponent(symbol)}`} aria-label="Return to trading terminal" title="Return to trading terminal"><ArrowLeft size={16} /></Link>
+				) : (
+					<Link className="icon-button chart-expand-button" to={`/trading/chart?symbol=${encodeURIComponent(symbol)}`} target="_blank" rel="noopener noreferrer" aria-label="Open chart in a new tab" title="Open full-screen chart in a new tab"><ExternalLink size={16} /></Link>
+				)}
 			</div>
 			<div className="chart-controls">
 				<TimeframeSelector value={timeframe} onChange={setTimeframe} />
