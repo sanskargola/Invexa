@@ -136,6 +136,8 @@ h1 { margin-bottom: 5px; color: #eff2ed; font: 600 26px 'Manrope', sans-serif; l
 .account-equity { display: flex; flex-direction: column; gap: 4px; color: #7f8a81; font-size: 9px; }
 .account-equity strong { color: #dce3db; font-size: 12px; font-weight: 600; }
 .terminal-layout { display: grid; grid-template-columns: minmax(0, 1fr) 294px; align-items: start; gap: 13px; }
+.trading-chart, .trading-view-chart, .tradingview-chart, .tradingview-widget-container { height: 520px; min-height: 520px; }
+.trading-chart iframe, .trading-view-chart iframe, .tradingview-chart iframe, .tradingview-widget-container iframe { height: 100%; }
 .terminal-main-column, .terminal-side-column { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .watchlist-strip { padding: 11px 13px 0; background: #171d19; border: 1px solid #29312b; border-radius: 7px; }
 .watchlist-title { display: flex; align-items: center; justify-content: space-between; color: #849087; font-size: 8px; font-weight: 700; letter-spacing: .8px; }
