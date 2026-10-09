@@ -343,6 +343,7 @@ STOCK_CATALOG: dict[str, dict[str, Any]] = {
 KNOWN_NAMES: dict[str, str] = {
     symbol: info["name"] for symbol, info in STOCK_CATALOG.items()
 }
+KNOWN_NAMES.update({"^NSEI": "NIFTY 50", "^BSESN": "S&P BSE SENSEX"})
 for s, info in list(STOCK_CATALOG.items()):
     if info["exchange"] == "NSE":
         KNOWN_NAMES[f"{s}.NS"] = info["name"]
@@ -442,6 +443,10 @@ def _column(frame: pd.DataFrame, name: str) -> pd.Series | None:
 
 
 def _exchange_for(yahoo_symbol: str) -> str:
+    if yahoo_symbol == "^NSEI":
+        return "NSE"
+    if yahoo_symbol == "^BSESN":
+        return "BSE"
     if yahoo_symbol.endswith(".NS"):
         return "NSE"
     if yahoo_symbol.endswith(".BO"):
@@ -452,7 +457,7 @@ def _exchange_for(yahoo_symbol: str) -> str:
 
 
 def _currency_for(yahoo_symbol: str) -> str:
-    return "INR" if yahoo_symbol.endswith((".NS", ".BO")) else "USD"
+    return "INR" if yahoo_symbol.endswith((".NS", ".BO")) or yahoo_symbol in {"^NSEI", "^BSESN"} else "USD"
 
 
 def _quote_payload(
@@ -546,10 +551,7 @@ def _get_fallback_quote(yahoo_symbol: str) -> dict[str, Any]:
 
 
 def _should_try_live() -> bool:
-    try:
-        return datetime.now().year <= 2025
-    except Exception:
-        return False
+    return True
 
 
 def _quote_from_ticker(symbol: str) -> dict[str, Any]:
