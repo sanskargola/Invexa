@@ -1,9 +1,10 @@
-export function formatCurrency(value: number, currency = 'USD'): string {
-  const prefix = currency === 'INR' ? '₹' : '$'
-  return `${prefix}${value.toLocaleString(undefined, {
+export function formatCurrency(value: number, currency = 'INR'): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`
+  }).format(value)
 }
 
 export function formatPercent(value: number, showSign = true): string {
@@ -19,11 +20,10 @@ export function formatNumber(value: number, decimals = 2): string {
 }
 
 export function formatCompactNumber(value: number): string {
-  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`
-  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`
-  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`
-  if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`
-  return String(value)
+  if (value >= 1e7) return `₹${(value / 1e7).toFixed(2)} Cr`
+  if (value >= 1e5) return `₹${(value / 1e5).toFixed(2)} L`
+  if (value >= 1e3) return `₹${(value / 1e3).toFixed(1)} K`
+  return formatCurrency(value)
 }
 
 export function formatDate(dateString: string): string {

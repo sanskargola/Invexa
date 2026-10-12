@@ -3,18 +3,15 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, Download, MoreHorizontal, Plu
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { marketApi, type MarketQuote } from '../../services/marketApi'
+import { formatCurrency } from '../../utils/formatters'
 
 const paperHoldings = [
-	{ ticker: 'NVDA', shares: 42, color: '#a8c55a' },
-	{ ticker: 'AAPL', shares: 18, color: '#78a9d2' },
-	{ ticker: 'MSFT', shares: 9, color: '#d58e6c' },
-	{ ticker: 'AMZN', shares: 21, color: '#d5bd73' },
+	{ ticker: 'RELIANCE', shares: 12, color: '#a8c55a' },
+	{ ticker: 'TCS', shares: 8, color: '#78a9d2' },
+	{ ticker: 'INFY', shares: 20, color: '#d58e6c' },
+	{ ticker: 'HDFCBANK', shares: 15, color: '#d5bd73' },
+	{ ticker: 'SBIN', shares: 20, color: '#82b8a2' },
 ]
-
-function formatMoney(value: number, currency = 'USD') {
-	const prefix = currency === 'INR' ? '₹' : '$'
-	return `${prefix}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 
 function sparkline(positive: boolean) {
 	return positive ? '0,20 10,15 20,18 30,8 40,13 50,6 60,10 70,2' : '0,3 10,8 20,5 30,14 40,9 50,18 60,11 70,20'
@@ -56,17 +53,24 @@ export default function Dashboard() {
 			ticker: holding.ticker,
 			name: quote?.name ?? holding.ticker,
 			shares: `${holding.shares} shares`,
-			price: price ? formatMoney(price, quote?.currency) : '—',
-			value: price ? formatMoney(value, quote?.currency) : '—',
+			price: price ? formatCurrency(price, quote?.currency) : '—',
+			value: price ? formatCurrency(value, quote?.currency) : '—',
 			change: `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`,
 			positive: change >= 0,
 			color: holding.color,
 		}
 	})
-	const movers = quotes.slice(0, 3).map((item) => ({
+	const marketMovers = useMemo(
+		() =>
+			[...quotes]
+				.sort((left, right) => Math.abs(right.percent_change) - Math.abs(left.percent_change))
+				.slice(0, 3),
+		[quotes],
+	)
+	const movers = marketMovers.map((item) => ({
 		ticker: item.symbol,
 		name: item.name,
-		price: formatMoney(item.price, item.currency),
+		price: formatCurrency(item.price, item.currency),
 		change: `${item.percent_change >= 0 ? '+' : ''}${item.percent_change.toFixed(2)}%`,
 		positive: item.percent_change >= 0,
 		values: sparkline(item.percent_change >= 0),
@@ -80,12 +84,12 @@ export default function Dashboard() {
 	const buyingPower = 12840
 	const portfolioValue = invested + buyingPower
 	const dayPercent = invested ? (dayPnl / invested) * 100 : 0
-	const bestQuote = paperHoldings
-		.map((holding) => quoteMap.get(holding.ticker))
-		.filter((item): item is MarketQuote => Boolean(item))
-		.sort((left, right) => right.percent_change - left.percent_change)[0]
-	const [portfolioWhole, portfolioCents] = portfolioValue.toFixed(2).split('.')
-	const [pnlWhole, pnlCents] = Math.abs(dayPnl).toFixed(2).split('.')
+	const bestQuote = useMemo(
+		() => [...quotes].sort((left, right) => right.percent_change - left.percent_change)[0] ?? null,
+		[quotes],
+	)
+	const [portfolioWhole, portfolioCents] = portfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.')
+	const [pnlWhole, pnlCents] = Math.abs(dayPnl).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.')
 
 	function exportPortfolio() {
 		const csv = ['Symbol,Shares,Price,Market value,Return', ...holdings.map((holding) => `${holding.ticker},${holding.shares.replace(' shares', '')},${holding.price},${holding.value},${holding.change}`)].join('\n')
@@ -101,7 +105,7 @@ export default function Dashboard() {
 		<div className="dashboard-page">
 			<div className="page-heading">
 				<div>
-					<p className="eyebrow">{new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date()).toUpperCase()} <span className="eyebrow-dot">·</span> MARKET OPEN</p>
+					<p className="eyebrow">{new Intl.DateTimeFormat('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date()).toUpperCase()} <span className="eyebrow-dot">·</span> NSE MARKET</p>
 					<h1>Good morning, {user?.name.split(/\s+/)[0] ?? 'Trader'} <span className="wave">↗</span></h1>
 					<p className="page-subtitle">Here’s what’s happening with your portfolio today.</p>
 				</div>
@@ -113,12 +117,12 @@ export default function Dashboard() {
 					<div className="metric-top"><span>Total portfolio value</span><button className="icon-button" aria-label="More portfolio options" aria-expanded={portfolioMenuOpen} onClick={() => setPortfolioMenuOpen((open) => !open)}><MoreHorizontal size={18} /></button>
 						{portfolioMenuOpen && <div className="dashboard-action-menu"><button onClick={exportPortfolio}><Download size={14} /> Download holdings CSV</button><button onClick={() => { setPortfolioMenuOpen(false); navigate('/portfolio') }}>Open portfolio</button></div>}
 					</div>
-					<div className="metric-value">${Number(portfolioWhole).toLocaleString()}<span className="metric-cents">.{portfolioCents}</span></div>
-					<div className="metric-foot"><span className={`change-pill ${dayPnl >= 0 ? 'positive' : 'negative'}`}>{dayPnl >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {Math.abs(dayPercent).toFixed(2)}%</span><span>{dayPnl >= 0 ? '+' : '-'}${Math.abs(dayPnl).toFixed(2)} today</span><span className="muted-separator">·</span><span className="muted">vs. last close</span></div>
-					<div className="portfolio-chart-wrap"><PerformanceChart /><div className="chart-xlabels"><span>9:30 AM</span><span>11:00 AM</span><span>12:30 PM</span><span>2:00 PM</span><span>4:00 PM</span></div></div>
+					<div className="metric-value">₹{portfolioWhole}<span className="metric-cents">.{portfolioCents}</span></div>
+					<div className="metric-foot"><span className={`change-pill ${dayPnl >= 0 ? 'positive' : 'negative'}`}>{dayPnl >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {Math.abs(dayPercent).toFixed(2)}%</span><span>{dayPnl >= 0 ? '+' : '-'}{formatCurrency(Math.abs(dayPnl))} today</span><span className="muted-separator">·</span><span className="muted">vs. previous close</span></div>
+					<div className="portfolio-chart-wrap"><PerformanceChart /><div className="chart-xlabels"><span>9:15 AM</span><span>11:00 AM</span><span>12:30 PM</span><span>2:00 PM</span><span>3:30 PM</span></div></div>
 				</article>
-				<article className="metric-panel"><div className="metric-top"><span>Buying power</span><span className="metric-icon green-icon"><ArrowUpRight size={16} /></span></div><div className="metric-value">$12,840<span className="metric-cents">.00</span></div><div className="metric-foot"><span className="muted">Available to invest</span></div><div className="buying-power-track"><span /></div><div className="metric-small-row"><span>Invested</span><strong>{formatMoney(invested)}</strong></div></article>
-				<article className="metric-panel"><div className="metric-top"><span>Day’s return</span><span className="metric-icon green-icon">{dayPnl >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}</span></div><div className={`metric-value ${dayPnl >= 0 ? 'positive-text' : 'negative-text'}`}>{dayPnl >= 0 ? '+' : '-'}${Number(pnlWhole).toLocaleString()}<span className="metric-cents">.{pnlCents}</span></div><div className="metric-foot"><span className={`change-pill ${dayPnl >= 0 ? 'positive' : 'negative'}`}>{dayPnl >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {Math.abs(dayPercent).toFixed(2)}%</span><span className="muted">today</span></div><div className="mini-bars" aria-label="Daily returns">{Array.from({ length: 18 }, (_, index) => <i key={index} />)}</div><div className="metric-small-row"><span>Best performer</span><strong className={(bestQuote?.percent_change ?? 0) >= 0 ? 'positive-text' : 'negative-text'}>{bestQuote ? `${bestQuote.symbol} ${bestQuote.percent_change >= 0 ? '+' : ''}${bestQuote.percent_change.toFixed(2)}%` : '—'}</strong></div></article>
+				<article className="metric-panel"><div className="metric-top"><span>Buying power</span><span className="metric-icon green-icon"><ArrowUpRight size={16} /></span></div><div className="metric-value">{formatCurrency(buyingPower)}</div><div className="metric-foot"><span className="muted">Available to invest</span></div><div className="buying-power-track"><span /></div><div className="metric-small-row"><span>Invested</span><strong>{formatCurrency(invested)}</strong></div></article>
+				<article className="metric-panel"><div className="metric-top"><span>Day’s return</span><span className="metric-icon green-icon">{dayPnl >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}</span></div><div className={`metric-value ${dayPnl >= 0 ? 'positive-text' : 'negative-text'}`}>{dayPnl >= 0 ? '+' : '-'}₹{pnlWhole}<span className="metric-cents">.{pnlCents}</span></div><div className="metric-foot"><span className={`change-pill ${dayPnl >= 0 ? 'positive' : 'negative'}`}>{dayPnl >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {Math.abs(dayPercent).toFixed(2)}%</span><span className="muted">today</span></div><div className="mini-bars" aria-label="Daily returns">{Array.from({ length: 18 }, (_, index) => <i key={index} />)}</div><div className="metric-small-row"><span>Best performer</span><strong className={(bestQuote?.percent_change ?? 0) >= 0 ? 'positive-text' : 'negative-text'}>{bestQuote ? `${bestQuote.symbol} ${bestQuote.percent_change >= 0 ? '+' : ''}${bestQuote.percent_change.toFixed(2)}%` : '—'}</strong></div></article>
 			</section>
 			<section className="dashboard-columns">
 				<article className="surface holdings-panel">
@@ -131,7 +135,7 @@ export default function Dashboard() {
 					<button className="movers-footer" onClick={() => navigate('/market')}>Explore markets <ArrowRight size={14} /></button>
 				</article>
 			</section>
-			<section className="insight-banner"><span className="insight-icon"><Sparkles size={17} /></span><div><strong>Your portfolio is outperforming the S&amp;P 500</strong><p>You’re ahead by 1.2% this week. See what’s driving your gains.</p></div><button className="insight-action" onClick={() => navigate('/ai')}>View insights <ArrowRight size={14} /></button></section>
+			<section className="insight-banner"><span className="insight-icon"><Sparkles size={17} /></span><div><strong>Your portfolio is outperforming the NIFTY 50</strong><p>You’re ahead by 1.2% this week. See what’s driving your gains.</p></div><button className="insight-action" onClick={() => navigate('/ai')}>View insights <ArrowRight size={14} /></button></section>
 		</div>
 	)
 }

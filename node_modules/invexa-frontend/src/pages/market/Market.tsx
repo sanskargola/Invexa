@@ -3,17 +3,13 @@ import { ArrowRight, Search } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import TradingChart from '../../components/charts/TradingChart'
 import { useMarketData } from '../../hooks/useMarketData'
-
-function money(value: number, currency: string) {
-  const prefix = currency === 'INR' ? '₹' : '$'
-  return `${prefix}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+import { formatCurrency } from '../../utils/formatters'
 
 export default function Market() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const { items, loading, error } = useMarketData(query)
-  const [selected, setSelected] = useState('NVDA')
+  const [selected, setSelected] = useState('RELIANCE')
 
   const stats = useMemo(() => {
     if (!items.length) return { gainers: 0, losers: 0, avgMove: 0 }
@@ -31,7 +27,7 @@ export default function Market() {
         <div>
           <p className="eyebrow">MARKETS <span className="eyebrow-dot">·</span> LIVE YAHOO FINANCE</p>
           <h1>Market overview</h1>
-          <p className="page-subtitle">Track US and Indian equities with live quotes and candlestick charts.</p>
+          <p className="page-subtitle">Track Indian equities with live quotes and candlestick charts.</p>
         </div>
         <div className="market-search-field">
           <Search size={14} />
@@ -63,7 +59,7 @@ export default function Market() {
                       <td><strong className="symbol-link">{item.symbol}</strong></td>
                       <td>{item.name}</td>
                       <td>{item.exchange}</td>
-                      <td>{money(item.price, item.currency)}</td>
+                      <td>{formatCurrency(item.price, item.currency)}</td>
                       <td><span className={item.percent_change >= 0 ? 'positive-text' : 'negative-text'}>{item.percent_change >= 0 ? '+' : ''}{item.percent_change.toFixed(2)}%</span></td>
                       <td>{item.volume.toLocaleString()}</td>
                     </tr>

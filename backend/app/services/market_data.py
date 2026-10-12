@@ -29,13 +29,6 @@ NSE_SYMBOLS = {
 }
 
 DEFAULT_SYMBOLS = [
-    "NVDA",
-    "AAPL",
-    "MSFT",
-    "TSLA",
-    "AMZN",
-    "GOOGL",
-    "META",
     "RELIANCE",
     "TCS",
     "INFY",
