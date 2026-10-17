@@ -9,7 +9,6 @@ import {
 	CheckCircle2,
 	ChevronRight,
 	ExternalLink,
-	Flame,
 	Globe,
 	Search,
 	ShieldCheck,
@@ -19,6 +18,8 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import TradingChart from '../../components/charts/TradingChart'
+import { MARKET_INDICES, type MarketIndex } from '../../data/marketIndices'
+import { marketApi, type MarketQuote } from '../../services/marketApi'
 import { formatCurrency } from '../../utils/formatters'
 
 export interface NSEStockProfile {
@@ -572,28 +573,73 @@ const INITIAL_NSE_STOCKS: NSEStockProfile[] = [
 	},
 ]
 
-const POPULAR_QUICK_CHIPS = [
-	'RELIANCE',
-	'TCS',
-	'INFY',
-	'HDFCBANK',
-	'SBIN',
-	'TATAMOTORS',
-	'ICICIBANK',
-	'ITC',
-	'BHARTIARTL',
-	'WIPRO',
-]
-
 export default function Market() {
 	const navigate = useNavigate()
 	const [query, setQuery] = useState('')
 	const [selectedSymbol, setSelectedSymbol] = useState('RELIANCE')
+	const [selectedIndex, setSelectedIndex] = useState<MarketIndex | null>(null)
+	const [indexQuote, setIndexQuote] = useState<MarketQuote | null>(null)
+	const [indexConstituentQuotes, setIndexConstituentQuotes] = useState<MarketQuote[]>([])
+	const [indexLoading, setIndexLoading] = useState(false)
+	const [constituentsLoading, setConstituentsLoading] = useState(false)
+	const [indexError, setIndexError] = useState<string | null>(null)
+	const [constituentsError, setConstituentsError] = useState<string | null>(null)
 	const [stocks, setStocks] = useState<NSEStockProfile[]>(INITIAL_NSE_STOCKS)
 	const [activeListTab, setActiveListTab] = useState<'all' | 'gainers' | 'losers'>('all')
 	const [activeRightTab, setActiveRightTab] = useState<'chart' | 'depth'>('chart')
 	const [lastTickedSymbol, setLastTickedSymbol] = useState<string | null>(null)
 	const [tickDirection, setTickDirection] = useState<'up' | 'down' | null>(null)
+
+	useEffect(() => {
+		if (!selectedIndex) return
+		let isActive = true
+		setIndexLoading(true)
+		setConstituentsLoading(true)
+		setIndexError(null)
+		setConstituentsError(null)
+		setIndexQuote(null)
+		setIndexConstituentQuotes([])
+		const controller = new AbortController()
+		const requestTimeout = window.setTimeout(() => controller.abort(), 15000)
+
+		marketApi.getQuotes([selectedIndex.symbol], controller.signal)
+			.then((quotes) => {
+				if (!isActive) return
+				const index = quotes.find((quote) => quote.yahoo_symbol === selectedIndex.symbol)
+				if (!index) throw new Error('No daily index quote was returned.')
+				setIndexQuote(index)
+			})
+			.catch((error: unknown) => {
+				if (!isActive) return
+				setIndexError(controller.signal.aborted
+					? 'Daily market data request timed out. Try again later.'
+					: error instanceof Error ? error.message : 'Unable to load daily market data.')
+			})
+			.finally(() => {
+				if (isActive) setIndexLoading(false)
+			})
+
+		const constituentSymbols = selectedIndex.constituents.map((symbol) => `${symbol}.NS`)
+		marketApi.getQuotes(constituentSymbols, controller.signal)
+			.then((quotes) => {
+				if (isActive) setIndexConstituentQuotes(quotes)
+			})
+			.catch((error: unknown) => {
+				if (!isActive) return
+				setConstituentsError(controller.signal.aborted
+					? 'Daily share data request timed out. Try again later.'
+					: error instanceof Error ? error.message : 'Unable to load daily share data.')
+			})
+			.finally(() => {
+				if (isActive) setConstituentsLoading(false)
+			})
+
+		return () => {
+			isActive = false
+			window.clearTimeout(requestTimeout)
+			controller.abort()
+		}
+	}, [selectedIndex])
 
 	// Live market simulation: subtly fluctuates prices and changes to reflect live market movement
 	useEffect(() => {
@@ -778,25 +824,25 @@ export default function Market() {
 					</button>
 				</form>
 
-				{/* Quick symbol chips */}
+				{/* Index selection chips */}
 				<div className="quick-symbol-chips">
 					<span className="quick-chips-label">
-						<Flame size={12} className="text-lime" /> Frequent:
+						<BarChart3 size={12} className="text-lime" /> Indices:
 					</span>
 					<div className="chips-scroller">
-						{POPULAR_QUICK_CHIPS.map((sym) => {
-							const isChipActive = sym === activeStock.symbol
+						{MARKET_INDICES.map((index) => {
+							const isChipActive = index.name === selectedIndex?.name
 							return (
 								<button
-									key={sym}
+									key={index.name}
 									type="button"
 									onClick={() => {
-										setSelectedSymbol(sym)
-										setQuery('')
+										setSelectedIndex(index)
 									}}
 									className={`symbol-chip-btn ${isChipActive ? 'chip-active' : ''}`}
+									aria-pressed={isChipActive}
 								>
-									{sym}
+									{index.name}
 								</button>
 							)
 						})}
@@ -845,6 +891,141 @@ export default function Market() {
 					</div>
 				)}
 			</div>
+
+			{selectedIndex && (
+				<section className="market-index-details" aria-live="polite">
+					<div className="market-index-heading">
+						<div>
+							<p className="eyebrow">{selectedIndex.exchange} MARKET INDEX</p>
+							<h2>{selectedIndex.name}</h2>
+							<p className="page-subtitle">
+								{selectedIndex.constituents.length} constituent shares · Latest available daily data
+							</p>
+						</div>
+					</div>
+
+					{(indexLoading || constituentsLoading) && (
+						<p className="market-index-status">Loading latest daily market data…</p>
+					)}
+					{indexError && <p className="market-index-error" role="alert">{indexError}</p>}
+					{constituentsError && <p className="market-index-error" role="alert">{constituentsError}</p>}
+					{!indexLoading && !indexQuote && !indexError && (
+						<p className="market-index-error" role="alert">No daily index quote is currently available.</p>
+					)}
+					{!constituentsLoading && indexConstituentQuotes.length === 0 && !constituentsError && (
+						<p className="market-index-error" role="alert">
+							Daily share prices are unavailable. The data provider may be rate-limiting requests; try again later.
+						</p>
+					)}
+					{indexConstituentQuotes.some((quote) => quote.is_fallback) && (
+						<p className="market-index-status">
+							No saved daily data is available for some shares yet; those values are not shown.
+						</p>
+					)}
+					{indexConstituentQuotes.some((quote) => quote.is_stale) && (
+						<p className="market-index-status">
+							Showing the last saved daily quotes because the market data provider could not refresh. Quote dates are listed per share.
+						</p>
+					)}
+
+					{indexQuote && (
+						<>
+							{indexQuote.is_fallback && (
+								<p className="market-index-status">
+									No saved daily index data is available yet; the index value is not shown.
+								</p>
+							)}
+							{indexQuote.is_stale && (
+								<p className="market-index-status">
+									Showing the last saved daily index quote dated {indexQuote.quote_date ?? 'unknown'}.
+								</p>
+							)}
+							<div className="market-index-summary">
+								<div className="market-index-primary">
+									<span>INDEX CLOSE {indexQuote.quote_date ? `· ${indexQuote.quote_date}` : ''}</span>
+									<strong>
+										{indexQuote.is_fallback
+											? '—'
+											: `${indexQuote.currency === 'INR' ? '₹' : ''}${indexQuote.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+									</strong>
+									<span className={indexQuote.is_fallback ? '' : indexQuote.change >= 0 ? 'positive-text' : 'negative-text'}>
+										{indexQuote.is_fallback
+											? 'Daily quote unavailable'
+											: `${indexQuote.change >= 0 ? '+' : ''}${indexQuote.change.toFixed(2)} points (${indexQuote.percent_change >= 0 ? '+' : ''}${indexQuote.percent_change.toFixed(2)}%)`}
+									</span>
+								</div>
+								<div className="market-index-stat">
+									<span>ADVANCING (QUOTED)</span>
+									<strong className="positive-text">
+										{indexConstituentQuotes.filter((quote) => !quote.is_fallback && quote.percent_change > 0).length}
+									</strong>
+								</div>
+								<div className="market-index-stat">
+									<span>DECLINING (QUOTED)</span>
+									<strong className="negative-text">
+										{indexConstituentQuotes.filter((quote) => !quote.is_fallback && quote.percent_change < 0).length}
+									</strong>
+								</div>
+								<div className="market-index-stat">
+									<span>UNCHANGED (QUOTED)</span>
+									<strong>
+										{indexConstituentQuotes.filter((quote) => !quote.is_fallback && quote.percent_change === 0).length}
+									</strong>
+								</div>
+							</div>
+						</>
+					)}
+
+					<div className="market-index-table-wrap">
+						<table className="live-data-table market-index-table">
+							<colgroup>
+								<col className="market-index-col-symbol" />
+								<col className="market-index-col-company" />
+								<col className="market-index-col-price" />
+								<col className="market-index-col-change" />
+								<col className="market-index-col-gain" />
+								<col className="market-index-col-volume" />
+								<col className="market-index-col-session" />
+							</colgroup>
+							<thead>
+								<tr>
+									<th>SYMBOL</th>
+									<th>COMPANY</th>
+									<th className="market-index-number">LAST CLOSE</th>
+									<th className="market-index-number">DAY CHANGE</th>
+									<th className="market-index-number">DAY GAIN / LOSS</th>
+									<th className="market-index-number">VOLUME</th>
+									<th className="market-index-number">SESSION</th>
+								</tr>
+							</thead>
+							<tbody>
+								{selectedIndex.constituents.map((symbol) => {
+									const quote = indexConstituentQuotes.find((item) => item.symbol === symbol && !item.is_fallback)
+									return (
+										<tr key={symbol}>
+											<td><strong className="stock-sym">{symbol}</strong></td>
+											<td className="market-index-company" title={quote?.name ?? symbol}>{quote?.name ?? symbol}</td>
+											<td className="market-index-number">
+												{quote ? `₹${quote.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+											</td>
+											<td className={`market-index-number ${quote ? (quote.change >= 0 ? 'positive-text' : 'negative-text') : ''}`}>
+												{quote ? `${quote.change >= 0 ? '+' : ''}${quote.change.toFixed(2)}` : '—'}
+											</td>
+											<td className={`market-index-number ${quote ? (quote.percent_change >= 0 ? 'positive-text' : 'negative-text') : ''}`}>
+												{quote ? `${quote.percent_change >= 0 ? '+' : ''}${quote.percent_change.toFixed(2)}%` : '—'}
+											</td>
+											<td className="market-index-number">
+												{quote ? quote.volume.toLocaleString('en-IN') : '—'}
+											</td>
+											<td className="market-index-number">{quote?.quote_date ?? '—'}</td>
+										</tr>
+									)
+								})}
+							</tbody>
+						</table>
+					</div>
+				</section>
+			)}
 
 			{/* ================= OFFICIAL NSE EQUITY INTELLIGENCE SNAPSHOT ================= */}
 			<section className="nse-stock-snapshot-panel">

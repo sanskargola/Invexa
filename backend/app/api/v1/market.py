@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
@@ -19,6 +21,9 @@ class MarketQuote(BaseModel):
     volume: int
     market_cap: float | None = None
     currency: str = "USD"
+    is_fallback: bool = False
+    quote_date: str | None = None
+    is_stale: bool = False
 
 
 class SentimentSignal(BaseModel):
@@ -52,8 +57,22 @@ async def search_market_quotes(q: str = "") -> list[MarketQuote]:
 
 
 @router.get("/quotes", response_model=list[MarketQuote])
-async def get_quotes() -> list[MarketQuote]:
-    items = await run_in_threadpool(list_quotes)
+async def get_quotes(symbols: str | None = None) -> list[MarketQuote]:
+    selected_symbols = [symbol.strip() for symbol in symbols.split(",") if symbol.strip()] if symbols is not None else None
+    if symbols is not None and not selected_symbols:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one symbol is required")
+    if selected_symbols and len(selected_symbols) > 100:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A maximum of 100 symbols can be requested")
+    try:
+        items = await asyncio.wait_for(
+            run_in_threadpool(list_quotes, selected_symbols),
+            timeout=12,
+        )
+    except TimeoutError as error:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Daily market data provider timed out. Try again later.",
+        ) from error
     return [MarketQuote(**item) for item in items]
 
 

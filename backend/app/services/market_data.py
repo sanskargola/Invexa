@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
+import json
+import logging
 import math
 import random
 import threading
 import time
+import urllib.error
+import urllib.request
+import zipfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -489,7 +497,12 @@ STOCK_CATALOG: dict[str, dict[str, Any]] = {
 KNOWN_NAMES: dict[str, str] = {
     symbol: info["name"] for symbol, info in STOCK_CATALOG.items()
 }
-KNOWN_NAMES.update({"^NSEI": "NIFTY 50", "^BSESN": "S&P BSE SENSEX"})
+KNOWN_NAMES.update({
+    "^NSEI": "NIFTY 50",
+    "^BSESN": "S&P BSE SENSEX",
+    "^NSEBANK": "NIFTY BANK",
+    "^CNXIT": "NIFTY IT",
+})
 for s, info in list(STOCK_CATALOG.items()):
     if info["exchange"] == "NSE":
         KNOWN_NAMES[f"{s}.NS"] = info["name"]
@@ -510,6 +523,12 @@ INTRADAY = {"1m", "5m", "15m", "30m", "1H", "4H"}
 
 _CACHE: dict[str, tuple[float, Any]] = {}
 _LOCK = threading.Lock()
+_LAST_GOOD_QUOTES: dict[str, dict[str, Any]] = {}
+_LAST_GOOD_QUOTES_LOADED = False
+_LAST_GOOD_QUOTES_PATH = Path(__file__).resolve().parents[2] / ".market-data-cache.json"
+_LOGGER = logging.getLogger(__name__)
+_NSE_BHAVCOPY_URL = "https://archives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{date}_F_0000.csv.zip"
+_INDIA_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
 
 
 def _cached(key: str, ttl: float, factory):
@@ -589,7 +608,7 @@ def _column(frame: pd.DataFrame, name: str) -> pd.Series | None:
 
 
 def _exchange_for(yahoo_symbol: str) -> str:
-    if yahoo_symbol == "^NSEI":
+    if yahoo_symbol in {"^NSEI", "^NSEBANK", "^CNXIT"}:
         return "NSE"
     if yahoo_symbol == "^BSESN":
         return "BSE"
@@ -603,7 +622,7 @@ def _exchange_for(yahoo_symbol: str) -> str:
 
 
 def _currency_for(yahoo_symbol: str) -> str:
-    return "INR" if yahoo_symbol.endswith((".NS", ".BO")) or yahoo_symbol in {"^NSEI", "^BSESN"} else "USD"
+    return "INR" if yahoo_symbol.endswith((".NS", ".BO")) or yahoo_symbol in {"^NSEI", "^BSESN", "^NSEBANK", "^CNXIT"} else "USD"
 
 
 def _quote_payload(
@@ -615,6 +634,9 @@ def _quote_payload(
     name: str = "",
     exchange: str = "",
     market_cap: float | None = None,
+    is_fallback: bool = False,
+    quote_date: str | None = None,
+    is_stale: bool = False,
 ) -> dict[str, Any]:
     change = price - previous_close
     percent_change = (change / previous_close * 100) if previous_close else 0.0
@@ -631,6 +653,9 @@ def _quote_payload(
         "volume": volume,
         "market_cap": market_cap,
         "currency": _currency_for(yahoo_symbol),
+        "is_fallback": is_fallback,
+        "quote_date": quote_date,
+        "is_stale": is_stale,
     }
 
 
@@ -645,7 +670,116 @@ def _quote_from_frame(yahoo_symbol: str, frame: pd.DataFrame) -> dict[str, Any]:
     price = _safe_float(closes.iloc[-1])
     previous = _safe_float(closes.iloc[-2], price) if len(closes) >= 2 else price
     volume = _safe_int(volume_col.dropna().iloc[-1] if volume_col is not None and not volume_col.dropna().empty else 0)
-    return _quote_payload(yahoo_symbol, price=price, previous_close=previous, volume=volume)
+    quote_date = pd.Timestamp(closes.index[-1]).date().isoformat()
+    return _quote_payload(yahoo_symbol, price=price, previous_close=previous, volume=volume, quote_date=quote_date)
+
+
+def _load_last_good_quotes() -> None:
+    global _LAST_GOOD_QUOTES_LOADED
+    with _LOCK:
+        if _LAST_GOOD_QUOTES_LOADED:
+            return
+        _LAST_GOOD_QUOTES_LOADED = True
+        try:
+            cached_quotes = json.loads(_LAST_GOOD_QUOTES_PATH.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return
+        except (OSError, json.JSONDecodeError) as error:
+            _LOGGER.warning("Unable to read cached daily market quotes: %s", error)
+            return
+
+        if not isinstance(cached_quotes, dict):
+            _LOGGER.warning("Ignoring invalid cached daily market quotes: expected an object")
+            return
+        for symbol, quote in cached_quotes.items():
+            if (
+                isinstance(symbol, str)
+                and isinstance(quote, dict)
+                and quote.get("yahoo_symbol") == symbol
+                and isinstance(quote.get("quote_date"), str)
+                and isinstance(quote.get("price"), (int, float))
+                and not quote.get("is_fallback", True)
+            ):
+                _LAST_GOOD_QUOTES[symbol] = quote
+
+
+def _remember_daily_quotes(quotes: list[dict[str, Any]]) -> None:
+    successful_quotes = {
+        quote["yahoo_symbol"]: quote
+        for quote in quotes
+        if not quote.get("is_fallback") and not quote.get("is_stale") and quote.get("quote_date")
+    }
+    if not successful_quotes:
+        return
+
+    _load_last_good_quotes()
+    with _LOCK:
+        _LAST_GOOD_QUOTES.update(successful_quotes)
+        try:
+            temporary_path = _LAST_GOOD_QUOTES_PATH.with_suffix(".tmp")
+            temporary_path.write_text(json.dumps(_LAST_GOOD_QUOTES), encoding="utf-8")
+            temporary_path.replace(_LAST_GOOD_QUOTES_PATH)
+        except OSError as error:
+            _LOGGER.warning("Unable to persist daily market quotes: %s", error)
+
+
+def _last_good_or_fallback(yahoo_symbol: str) -> dict[str, Any]:
+    _load_last_good_quotes()
+    with _LOCK:
+        quote = _LAST_GOOD_QUOTES.get(yahoo_symbol)
+        if quote is not None:
+            return {**quote, "is_stale": True}
+    return _get_fallback_quote(yahoo_symbol)
+
+
+def _load_nse_bhavcopy() -> dict[str, dict[str, Any]]:
+    market_today = datetime.now(_INDIA_TIMEZONE).date()
+    for days_back in range(8):
+        trading_day = market_today - timedelta(days=days_back)
+        if trading_day.weekday() >= 5:
+            continue
+        archive_url = _NSE_BHAVCOPY_URL.format(date=trading_day.strftime("%Y%m%d"))
+        request = urllib.request.Request(
+            archive_url,
+            headers={"User-Agent": "Mozilla/5.0 Invexa market-data client"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=4) as response:
+                archive = response.read()
+            with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
+                csv_name = next(
+                    (name for name in zipped.namelist() if name.lower().endswith(".csv")),
+                    None,
+                )
+                if csv_name is None:
+                    raise ValueError("NSE bhavcopy archive did not contain a CSV file")
+                with zipped.open(csv_name) as csv_file:
+                    reader = csv.DictReader(io.TextIOWrapper(csv_file, encoding="utf-8-sig"))
+                    quotes: dict[str, dict[str, Any]] = {}
+                    for row in reader:
+                        if row.get("FinInstrmTp") != "STK" or row.get("SctySrs") != "EQ":
+                            continue
+                        symbol = row.get("TckrSymb", "").strip().upper()
+                        yahoo_symbol = f"{symbol}.NS"
+                        price = _safe_float(row.get("ClsPric"))
+                        previous_close = _safe_float(row.get("PrvsClsgPric"))
+                        if not symbol or price <= 0 or previous_close <= 0:
+                            continue
+                        quote_date = row.get("TradDt") or trading_day.isoformat()
+                        quotes[yahoo_symbol] = _quote_payload(
+                            yahoo_symbol,
+                            price=price,
+                            previous_close=previous_close,
+                            volume=_safe_int(row.get("TtlTradgVol")),
+                            name=KNOWN_NAMES.get(yahoo_symbol) or row.get("FininstrmNm", symbol).title(),
+                            exchange="NSE",
+                            quote_date=quote_date,
+                        )
+                    if quotes:
+                        return quotes
+        except (urllib.error.URLError, TimeoutError, OSError, zipfile.BadZipFile, ValueError) as error:
+            _LOGGER.info("NSE daily archive unavailable for %s: %s", trading_day, error)
+    return {}
 
 
 def _get_fallback_catalog_item(symbol: str) -> dict[str, Any]:
@@ -693,6 +827,7 @@ def _get_fallback_quote(yahoo_symbol: str) -> dict[str, Any]:
         name=info["name"],
         exchange=info["exchange"],
         market_cap=info["market_cap"],
+        is_fallback=True,
     )
 
 
@@ -711,30 +846,7 @@ def _quote_from_ticker(symbol: str) -> dict[str, Any]:
             if frame is not None and not frame.empty:
                 if isinstance(frame.columns, pd.MultiIndex):
                     frame.columns = [str(column[0]).title() if isinstance(column, tuple) else str(column) for column in frame.columns]
-                quote = _quote_from_frame(yahoo_symbol, frame)
-                try:
-                    ticker = yf.Ticker(yahoo_symbol)
-                    fast = dict(ticker.fast_info or {})
-                    last_price = _safe_float(fast.get("lastPrice") or fast.get("last_price"), quote["price"])
-                    previous = _safe_float(fast.get("previousClose") or fast.get("previous_close"), quote["price"] - quote["change"])
-                    volume = _safe_int(fast.get("lastVolume") or fast.get("last_volume") or quote["volume"])
-                    market_cap = _safe_float(fast.get("marketCap") or fast.get("market_cap"), 0.0) or None
-                    currency = str(fast.get("currency") or quote["currency"])
-                    exchange = str(fast.get("exchange") or quote["exchange"])
-                    quote = _quote_payload(
-                        yahoo_symbol,
-                        price=last_price,
-                        previous_close=previous,
-                        volume=volume,
-                        name=quote["name"],
-                        exchange=exchange,
-                        market_cap=market_cap,
-                    )
-                    quote["currency"] = currency
-                    quote["tradingview_symbol"] = tradingview_symbol(yahoo_symbol, exchange)
-                except Exception:
-                    pass
-                return quote
+                return _quote_from_frame(yahoo_symbol, frame)
         except Exception:
             pass
     return _get_fallback_quote(yahoo_symbol)
@@ -742,43 +854,61 @@ def _quote_from_ticker(symbol: str) -> dict[str, Any]:
 
 def get_quote(symbol: str) -> dict[str, Any]:
     yahoo_symbol = resolve_yahoo_symbol(symbol)
-    return _cached(f"quote:{yahoo_symbol}", 15, lambda: _quote_from_ticker(yahoo_symbol))
+    def load() -> dict[str, Any]:
+        quote = _quote_from_ticker(yahoo_symbol)
+        if quote.get("quote_date") and not quote.get("is_fallback"):
+            _remember_daily_quotes([quote])
+            return quote
+        return _last_good_or_fallback(yahoo_symbol)
+
+    return _cached(f"quote:{yahoo_symbol}", 60, load)
 
 
 def list_quotes(symbols: list[str] | None = None) -> list[dict[str, Any]]:
     selected = [resolve_yahoo_symbol(symbol) for symbol in (symbols or DEFAULT_SYMBOLS)]
 
     def load() -> list[dict[str, Any]]:
-        quotes: list[dict[str, Any]] = []
-        if _should_try_live():
+        quotes_by_symbol: dict[str, dict[str, Any]] = {}
+        nse_symbols = [symbol for symbol in selected if symbol.endswith(".NS")]
+        if nse_symbols:
+            market_today = datetime.now(_INDIA_TIMEZONE).date().isoformat()
+            bhavcopy = _cached(f"nse-bhavcopy:{market_today}", 300, _load_nse_bhavcopy)
+            quotes_by_symbol.update(
+                {symbol: bhavcopy[symbol] for symbol in nse_symbols if symbol in bhavcopy}
+            )
+
+        remaining = [symbol for symbol in selected if symbol not in quotes_by_symbol]
+        if remaining and _should_try_live():
             try:
-                joined = " ".join(selected)
-                frame = yf.download(joined, period="5d", interval="1d", group_by="ticker", auto_adjust=True, threads=True, progress=False, timeout=3)
+                joined = " ".join(remaining)
+                frame = yf.download(joined, period="5d", interval="1d", group_by="ticker", auto_adjust=True, threads=True, progress=False, timeout=5)
                 if frame is not None and not frame.empty:
-                    for yahoo_symbol in selected:
+                    for yahoo_symbol in remaining:
                         try:
-                            if len(selected) == 1:
+                            if len(remaining) == 1:
                                 subset = frame
                             elif isinstance(frame.columns, pd.MultiIndex) and yahoo_symbol in frame.columns.get_level_values(0):
                                 subset = frame[yahoo_symbol]
                             elif yahoo_symbol in getattr(frame, "columns", []):
                                 subset = frame
+                            elif isinstance(frame.columns, pd.MultiIndex) and yahoo_symbol in frame.columns.get_level_values(1):
+                                subset = frame.xs(yahoo_symbol, axis=1, level=1)
                             else:
-                                quotes.append(_get_fallback_quote(yahoo_symbol))
                                 continue
-                            quotes.append(_quote_from_frame(yahoo_symbol, subset))
+                            quotes_by_symbol[yahoo_symbol] = _quote_from_frame(yahoo_symbol, subset)
                         except Exception:
-                            quotes.append(_get_fallback_quote(yahoo_symbol))
-                    if quotes:
-                        return quotes
-            except Exception:
-                pass
+                            _LOGGER.debug("Unable to parse daily quote for %s", yahoo_symbol, exc_info=True)
+            except Exception as error:
+                _LOGGER.info("Yahoo daily quote request failed: %s", error)
 
-        for yahoo_symbol in selected:
-            quotes.append(_get_fallback_quote(yahoo_symbol))
+        quotes = [
+            quotes_by_symbol.get(symbol) or _last_good_or_fallback(symbol)
+            for symbol in selected
+        ]
+        _remember_daily_quotes(quotes)
         return quotes
 
-    return _cached(f"quotes:{','.join(selected)}", 15, load)
+    return _cached(f"quotes:{','.join(selected)}", 300, load)
 
 
 def search_quotes(query: str = "") -> list[dict[str, Any]]:

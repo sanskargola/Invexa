@@ -12,6 +12,9 @@ export type MarketQuote = {
   volume: number
   market_cap?: number | null
   currency: string
+  is_fallback?: boolean
+  quote_date?: string | null
+  is_stale?: boolean
 }
 
 export type MarketOverview = {
@@ -74,8 +77,11 @@ export const marketApi = {
     return request<MarketOverview>('/market/overview')
   },
 
-  getQuotes() {
-    return request<MarketQuote[]>('/market/quotes')
+  getQuotes(symbols?: string[], signal?: AbortSignal) {
+    const params = new URLSearchParams()
+    if (symbols?.length) params.set('symbols', symbols.join(','))
+    const query = params.toString()
+    return request<MarketQuote[]>(`/market/quotes${query ? `?${query}` : ''}`, { signal })
   },
 
   searchStocks(query = '') {
