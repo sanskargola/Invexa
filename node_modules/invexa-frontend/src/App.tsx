@@ -8,6 +8,7 @@ import StockSearch from './pages/market/StockSearch'
 import TradingTerminal from './pages/trading/TradingTerminal.tsx'
 import FullScreenTradingChart from './pages/trading/FullScreenTradingChart'
 import SettingsPage from './pages/settings/SettingsPage'
+import DayProfitBreakdown from './pages/portfolio/DayProfitBreakdown'
 import WorkspacePage from './pages/WorkspacePage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import PublicRoute from './routes/PublicRoute'
@@ -34,6 +35,8 @@ export default function App() {
 					<Route path="market/search" element={<StockSearch />} />
 					<Route path="terminal" element={<TradingTerminal />} />
 					<Route path="trading/terminal" element={<TradingTerminal />} />
+					<Route path="portfolio/day-breakdown" element={<DayProfitBreakdown />} />
+					<Route path="portfolio/day-return" element={<DayProfitBreakdown />} />
 					<Route path="settings" element={<SettingsPage />} />
 					<Route path="settings/chart" element={<SettingsPage />} />
 					<Route path="*" element={<WorkspacePage />} />

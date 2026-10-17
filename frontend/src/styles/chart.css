@@ -34,6 +34,7 @@
 .chart-ohlc span { margin-left: 4px; }
 .chart-canvas { position: relative; display: block; width: 100%; max-width: 100%; height: clamp(460px, 56vh, 680px); overflow: hidden; }
 .terminal-main-column .trading-chart-panel:not(.is-full-screen) .chart-canvas { height: clamp(520px, 65vh, 740px); }
+.proper-dimension-chart-box .trading-chart-panel:not(.is-full-screen) .chart-canvas { height: clamp(520px, 64vh, 720px); }
 .tradingview-widget-container, .tradingview-widget-container__widget { width: 100%; height: 100%; }
 .chart-canvas > .tradingview-widget-container__widget { position: absolute; inset: 0; }
 .chart-canvas iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
