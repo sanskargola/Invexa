@@ -8,10 +8,17 @@ The backend is located in the `backend` folder and exposes the app API at `/api/
 
 ### Run locally
 
+In Windows PowerShell, run these commands from the repository root:
+
 1. Install dependencies:
-   `cd backend && "C:/Program Files/Python312/python.exe" -m pip install -r requirements.txt`
-2. Start the API:
-   `cd backend && "C:/Program Files/Python312/python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
+   ```powershell
+   Set-Location .\backend
+   & "C:\Program Files\Python312\python.exe" -m pip install -r requirements.txt
+   ```
+2. Start the API (from the `backend` directory):
+   ```powershell
+   & "C:\Program Files\Python312\python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   ```
 3. Visit:
    - http://localhost:8000/docs
    - http://localhost:8000/health
@@ -30,8 +37,11 @@ The backend schema is defined in `backend/app/models.py` and managed with Alembi
 
 1. Create a PostgreSQL database and a dedicated application role. Do not run the API as a PostgreSQL superuser or table owner.
 2. Copy `backend/.env.example` to `backend/.env`, then set `DATABASE_URL`, a unique `SECRET_KEY` (at least 32 characters), and the trusted frontend origins. Generate a key with `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Use the `postgresql+psycopg://` URL scheme. Keep `.env` out of source control.
-3. Install backend requirements, then apply migrations:
-   `cd backend && python -m pip install -r requirements.txt && python -m alembic upgrade head`
+3. From the `backend` directory, install backend requirements and apply migrations:
+   ```powershell
+   python -m pip install -r requirements.txt
+   python -m alembic upgrade head
+   ```
 4. Start the API using the existing command above.
 
 For local development, SQLite and automatic table creation are enabled by default. Set `AUTO_CREATE_SCHEMA=false` when using migrations. Production mode requires PostgreSQL with the psycopg driver, certificate-verifying TLS, a unique signing key of at least 32 characters, explicit CORS origins, `DEBUG=false`, and Alembic-managed schema changes. Set `DATABASE_SSL_MODE=verify-full` and configure `DATABASE_SSL_ROOT_CERT` where required by your PostgreSQL provider.

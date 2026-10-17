@@ -11,20 +11,33 @@ class Base(DeclarativeBase):
     pass
 
 
-connect_args: dict[str, Any] = (
-    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-)
-if settings.database_url.startswith(("postgresql://", "postgresql+")):
+connect_args: dict[str, Any] = {}
+
+if settings.database_url.startswith("sqlite"):
+    connect_args["check_same_thread"] = False
+
+elif settings.database_url.startswith(("postgresql://", "postgresql+")):
     connect_args["sslmode"] = settings.database_ssl_mode
+
     if settings.database_ssl_root_cert:
         connect_args["sslrootcert"] = settings.database_ssl_root_cert
 
-engine = create_engine(settings.database_url, connect_args=connect_args, pool_pre_ping=True)
-SessionLocal = sessionmaker(autoflush=False, bind=engine, expire_on_commit=False)
+engine = create_engine(
+    settings.database_url,
+    connect_args=connect_args,
+    pool_pre_ping=True,
+)
+
+SessionLocal = sessionmaker(
+    autoflush=False,
+    bind=engine,
+    expire_on_commit=False,
+)
 
 
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
+
     try:
         yield db
     finally:
@@ -34,4 +47,5 @@ def get_db() -> Generator[Session, None, None]:
 def init_db() -> None:
     from app import models  # noqa: F401
 
-    Base.metadata.create_all(bind=engine)
+    if settings.auto_create_schema:
+        Base.metadata.create_all(bind=engine)
