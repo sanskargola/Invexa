@@ -17,11 +17,16 @@ In Windows PowerShell, run these commands from the repository root:
    ```
 2. Start the API (from the `backend` directory):
    ```powershell
-   & "C:\Program Files\Python312\python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   & ".\.venv312\Scripts\python.exe" -m uvicorn app.main:app --app-dir .\backend --host 0.0.0.0 --port 8000 --reload
    ```
 3. Visit:
    - http://localhost:8000/docs
    - http://localhost:8000/health
+  
+## Frontend 
+1. npm install
+2. npm run build
+3. npm run dev
 
 ### Stack
 
